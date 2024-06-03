@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ActionAid South Africa - Donations</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js"></script>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+      // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDjHCAhtCQvOcOGjatfm48F36OhO2S5tOE",
+  authDomain: "action-aid-2eaa5.firebaseapp.com",
+  databaseURL: "https://action-aid-2eaa5-default-rtdb.firebaseio.com",
+  projectId: "action-aid-2eaa5",
+  storageBucket: "action-aid-2eaa5.appspot.com",
+  messagingSenderId: "814359935042",
+  appId: "1:814359935042:web:27511bdb0618cdb37115db",
+  measurementId: "G-K0ZCSG5K5B"
+};
+        firebase.initializeApp(firebaseConfig);
+
+        firebase.auth().onAuthStateChanged(user => {
+            if (!user) {
+                window.location.href = "login.html";
+            }
+        });
+    </script>
+</head>
+<body>
+    <header>
+        <img src="images/logo.png" alt="ActionAid South Africa Logo" class="logo">
+        <h1>ActionAid South Africa</h1>
+    </header>
+    <nav>
+        <a href="index.html">Home</a>
+        <a href="about.html">About Us</a>
+        <a href="donations.html">Donations</a>
+        <a href="contact.html">Contact Us</a>
+        <a href="gallery.html">Gallery</a>
+        <a href="login.html">Login/Signup</a>
+    </nav>
+    <div class="container">
+        <section id="donations">
+            <h2>Make a Donation</h2>
+            <!-- Image Section -->
+   
+            <form id="donation-form">
+                <input type="text" id="name" placeholder="Your Name" required>
+                <input type="email" id="email" placeholder="Your Email" required>
+                <input type="number" id="amount" placeholder="Donation Amount (USD)" required>
+                <button id="submit-donation" type="submit">Donate</button>
+            </form>
+            <div id="card-element"></div>
+            <div id="card-errors" role="alert"></div>
+        </section>
+    </div>
+    <footer>
+        <p>&copy; 2024 ActionAid South Africa. All rights reserved.</p>
+    </footer>
+    <script>
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        // Initialize Stripe
+        const stripe = Stripe('your-publishable-key-here');  // Replace with your Stripe publishable key
+        const elements = stripe.elements();
+        const card = elements.create('card');
+        card.mount('#card-element');
+
+        // Handle real-time validation errors from the card Element.
+        card.addEventListener('change', event => {
+            const displayError = document.getElementById('card-errors');
+            if (event.error) {
+                displayError.textContent = event.error.message;
+            } else {
+                displayError.textContent = '';
+            }
+        });
+
+        // Handle form submission
+        const form = document.getElementById('donation-form');
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const user = auth.currentUser;
+            if (user) {
+                const name = document.getElementById('name').value;
+                const email = document.getElementById('email').value;
+                const amount = document.getElementById('amount').value;
+                const { paymentIntent, error } = await stripe.createPayment({
+                    payment_method: {
+                        card: card,
+                        billing_details: {
+                            name: name,
+                            email: email
+                        }
+                    },
+                    amount: amount * 100,  // Amount in cents
+                    currency: 'usd',
+                });
+                
+                if (error) {
+                    const displayError = document.getElementById('card-errors');
+                    displayError.textContent = error.message;
+                } else {
+                    db.ref('donations/' + user.uid).push({
+                        name: name,
+                        email: email,
+                        amount: amount,
+                        timestamp: new Date().toISOString()
+                    })
+                    .then(() => {
+                        alert("Donation successful! Thank you for your support.");
+                        document.getElementById('donation-form').reset();
+                    })
+                    .catch(err => {
+                        console.error("Error writing to database", err);
+                    });
+                }
+            } else {
+                alert("You must be logged in to make a donation.");
+                window.location.href = "login.html";
+            }
+        });
+    </script>
+</body>
+</html>
